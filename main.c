@@ -21,9 +21,10 @@ int main()
 
     //char* func = arg[1]; // what to do
     //char* dir = arg[2]; // with it
-    char* func = "repack"; // what to do
+    char* func = "unpack"; // what to do
     //char* dir = "Test"; // with it
-    char* dir = "archiv.txt";
+    char* dir = "Unpack";
+    char* archiv = "archiv.txt";
 
     printf("%s\n",func);
     printf("%s\n",dir);
@@ -38,9 +39,9 @@ int main()
             printf("Архивация прошла неуспешно.\n");
     }
 
-    if (strcmp("repack", func) == 0)
+    else if (strcmp("unpack", func) == 0)
     {
-	    if (repack (dir) == 0)
+	    if (unpack (archiv, dir) == 0)
             printf("Разархивация прошла успешно.\n");
 
         else
