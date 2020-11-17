@@ -1,8 +1,10 @@
 int rewrite(int file);
 void print_dir(char *dir, int depth);
 int pack(char *input);
-int repack(char *input);
+int unpack(char *archiv_path, char *folder);
 char* get_filepath(char* file, char* path);
 int free_mem(char array[],int n);
 int rewrite_info(char *path);
 char* to_char(char buf[]);
+char* from_int_to_char(int numb, int mem);
+int from_char_to_int(char str[]);
