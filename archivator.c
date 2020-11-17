@@ -38,7 +38,7 @@ int pack(char *dir_path)
 
         else if (entry->d_type == DT_REG)
         {
-            char* full_path = get_filepath(entry->d_name,dir_path); // length of path (full) NEED TO BE SAVED
+            char* full_path = get_filepath(entry->d_name,dir_path);
             int file;
 
             rewrite_info(full_path);
@@ -86,8 +86,8 @@ int free_mem(char array[], int n)
 int rewrite(int in)
 {
     char block[1024];
-    int out;
-    int nread;
+    int out, nread, size;
+    char* size_;
     
     if (in == -1)
     {
@@ -110,10 +110,15 @@ int rewrite(int in)
         perror("Ошибка: файл не читается.");
         return -3;
     }
+    
+    size = sizeof(int)*nread;
+    size_ = from_int_to_char(nread, size);
+    size = strlen(size_);
+    write(out, size_, sizeof(char)*size);
 
     if (write(1, block, nread) != nread)
     {
-        perror("Ошибка: не удаётся осуществить дозапись.");
+        perror("Не удаётся записать данные");
         return -4;
     }
 
@@ -128,17 +133,10 @@ int rewrite_info(char *path)
 {
     int length = strlen(path);
     int out;
-    
-    char buf[3];
+    int mem = 3;
     char* length_;
-
-
-    free_mem(buf, 3);
     
-    sprintf(buf, "%d", length);
-    length_ = to_char(buf);
-    
-
+    length_ = from_int_to_char(length, mem);
     out = open("archiv.txt",O_WRONLY|O_APPEND|O_CREAT, S_IROTH|S_IRGRP|S_IRUSR|S_IWGRP|S_IWOTH|S_IWUSR);
 
     if (out == -1)
@@ -181,4 +179,98 @@ char* to_char(char buf[])
     strcpy(ptr[0],buf);
 
     return ptr[0];
+}
+
+char* from_int_to_char(int numb, int mem)
+{
+    char buf[mem];
+    char* numb_;
+
+    free_mem(buf, mem);   
+    sprintf(buf, "%d", numb);
+    numb_ = to_char(buf);
+
+    return numb_;
+}
+
+int unpack(char *archiv_path, char *folder)
+{
+    int archiv, file;
+    char* path_length;
+    char* file_path = NULL;
+    int path_length_, size;
+    char buf[1024];
+
+    if ((archiv = open(archiv_path, O_RDONLY)) == -1)
+    {
+        perror("Не удаётся открыть архив!");
+        return -5;
+    }
+
+    while(1)
+    {
+        //read path length
+        if (read(archiv, buf, 3) == -1)
+        {
+            perror("Не удаётся прочитать данные из архива!");
+            return -6;
+        }
+
+        path_length_ = from_char_to_int(buf)-1;
+        free_mem(buf, 3);
+
+        if (read(archiv, buf, path_length_) == -1)
+        {
+            perror("Не удаётся прочитать данные из архива!");
+            return -6;
+        }
+
+        //file_path = buf;
+        //strcat(file_path, buf);
+        free_mem(buf, path_length_);
+
+        if (read(archiv, buf, 1) == -1)
+        {
+            perror("Не удаётся прочитать данные из архива!");
+            return -6;
+        }
+
+        size = from_char_to_int(buf);
+        free_mem(buf, 3);
+
+        if (read(archiv, buf, size) == -1)
+        {
+            perror("Не удаётся прочитать данные из архива!");
+            return -6;
+        }
+
+        file = open("new.txt",O_WRONLY|O_APPEND|O_CREAT, S_IROTH|S_IRGRP|S_IRUSR|S_IWGRP|S_IWOTH|S_IWUSR);
+
+        if (write(file, buf, size) == -1)
+        {
+            perror("Не удаётся записать данные");
+            return -4;
+        }
+
+
+        free_mem(buf, size);
+        close(file);
+        break;
+        
+    }
+
+    close(archiv);
+
+    return 0;
+}
+
+int from_char_to_int(char str[])
+{
+    int res;
+    char* str_ = to_char(str);
+    char s[3];
+
+    strcpy(s, str_);
+    res = atoi(str);
+    return res;
 }
