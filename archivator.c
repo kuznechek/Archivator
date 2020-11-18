@@ -41,7 +41,7 @@ int pack(char *dir_path)
             char* full_path = get_filepath(entry->d_name,dir_path);
             int file;
 
-            rewrite_info(full_path);
+            rewrite_info(entry->d_name);
             
             file = open(full_path, O_RDONLY);
 
@@ -73,6 +73,22 @@ char* get_filepath(char* file, char* path)
     return full_path_;
 }
 
+char* get_newpath(char* dir, char* file)
+{
+    int mem = strlen(file)+strlen(dir);
+    char full_path[mem];
+    char* full_path_ = NULL;
+
+    free_mem(full_path, mem);
+    strcat(full_path,"/");
+    strcat(full_path,dir);
+    strcat(full_path,"/");
+    strcat(full_path,file);  
+    full_path_ = to_char(full_path);
+
+    return full_path_;
+}
+
 int free_mem(char array[], int n)
 {
     for (int i = 0; i < n; i++)
@@ -84,9 +100,9 @@ int free_mem(char array[], int n)
 }
 
 int rewrite(int in)
-{
-    char block[1024];
+{  
     int out, nread, size;
+    char block[1024];
     char* size_;
     
     if (in == -1)
@@ -111,10 +127,9 @@ int rewrite(int in)
         return -3;
     }
     
-    size = sizeof(int)*nread;
+    size = SIZE;
     size_ = from_int_to_char(nread, size);
-    size = strlen(size_);
-    write(out, size_, sizeof(char)*size);
+    write(out, size_, size);
 
     if (write(1, block, nread) != nread)
     {
@@ -133,7 +148,7 @@ int rewrite_info(char *path)
 {
     int length = strlen(path);
     int out;
-    int mem = 3;
+    int mem = SIZE;
     char* length_;
     
     length_ = from_int_to_char(length, mem);
@@ -145,7 +160,7 @@ int rewrite_info(char *path)
         return -2;
     }
 
-    if (write(out, length_, sizeof(char)*2) == -1)
+    if (write(out, length_, mem) == -1)
     {
         perror("Ошибка: не удаётся осуществить дозапись.");
         return -4;
@@ -195,10 +210,9 @@ char* from_int_to_char(int numb, int mem)
 
 int unpack(char *archiv_path, char *folder)
 {
-    int archiv, file;
+    int archiv, file, dir, path_length_, size, size_file;
     char* path_length;
     char* file_path = NULL;
-    int path_length_, size;
     char buf[1024];
 
     if ((archiv = open(archiv_path, O_RDONLY)) == -1)
@@ -207,36 +221,42 @@ int unpack(char *archiv_path, char *folder)
         return -5;
     }
 
-    while(1)
+    size = SIZE;
+    if ((dir = mkdir(folder, S_IROTH|S_IRGRP|S_IRUSR|S_IWGRP|S_IWOTH|S_IWUSR)) == -1)
     {
-        //read path length
-        if (read(archiv, buf, 3) == -1)
+        perror("Не удаётся создать папку.");
+        return -5;
+    }
+
+    while(read(archiv, buf, size) != -1)
+    {
+        if (buf[0] == '\000')
         {
-            perror("Не удаётся прочитать данные из архива!");
-            return -6;
+            break;
         }
 
-        path_length_ = from_char_to_int(buf)-1;
-        free_mem(buf, 3);
-
+        path_length_ = from_char_to_int(buf);
+        free_mem(buf, size);
+        
+        //read path
         if (read(archiv, buf, path_length_) == -1)
         {
             perror("Не удаётся прочитать данные из архива!");
             return -6;
         }
 
-        //file_path = buf;
-        //strcat(file_path, buf);
-        free_mem(buf, path_length_);
+        file_path = to_char(buf);
+        char* full_path_ = get_filepath(file_path, folder);
+        
+        file = open(file_path,O_WRONLY|O_APPEND|O_CREAT, S_IROTH|S_IRGRP|S_IRUSR|S_IWGRP|S_IWOTH|S_IWUSR);
 
-        if (read(archiv, buf, 1) == -1)
+        if (file == -1)
         {
-            perror("Не удаётся прочитать данные из архива!");
-            return -6;
+            perror("Ошибка: не удаётся создать выходной файл или открыть существующий с таким же именем.");
+            return -2;
         }
 
-        size = from_char_to_int(buf);
-        free_mem(buf, 3);
+        free_mem(buf, path_length_);
 
         if (read(archiv, buf, size) == -1)
         {
@@ -244,19 +264,25 @@ int unpack(char *archiv_path, char *folder)
             return -6;
         }
 
-        file = open("new.txt",O_WRONLY|O_APPEND|O_CREAT, S_IROTH|S_IRGRP|S_IRUSR|S_IWGRP|S_IWOTH|S_IWUSR);
+        size_file = from_char_to_int(buf);
+        free_mem(buf, size);
 
-        if (write(file, buf, size) == -1)
+        if (read(archiv, buf, size_file) == -1)
+        {
+            perror("Не удаётся прочитать данные из архива!");
+            return -6;
+        }   
+
+        if (write(file, buf, size_file) == -1)
         {
             perror("Не удаётся записать данные");
             return -4;
         }
 
-
-        free_mem(buf, size);
-        close(file);
+        free_mem(buf, size_file);
+        close(file);  
+        //int l = link(full_path_, file_path);  
         break;
-        
     }
 
     close(archiv);
@@ -268,7 +294,8 @@ int from_char_to_int(char str[])
 {
     int res;
     char* str_ = to_char(str);
-    char s[3];
+    int mem = SIZE;
+    char s[mem];
 
     strcpy(s, str_);
     res = atoi(str);
