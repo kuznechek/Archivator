@@ -17,6 +17,7 @@ int pack(char *dir_path)
     DIR *folder = opendir(dir_path);
     struct stat statbuf;
     struct dirent *entry;
+    int objects, type, file;
 
     if (folder == NULL)
     {
@@ -27,32 +28,33 @@ int pack(char *dir_path)
     while (entry = readdir(folder))
     {
         printf("%s\n", entry->d_name);
+        char* full_path = get_filepath(entry->d_name,dir_path);
 
         if (DT_DIR == entry->d_type)
         {        
-
             if (strcmp(".", entry->d_name) == 0 || strcmp("..", entry->d_name) == 0)
                 continue;
-            pack(entry->d_name);
+
+            type = 0;
+
+            objects = count_objects_in_dir(full_path);
+            rewrite_dir(type, full_path, objects);
+            pack(full_path);
         }
 
         else if (entry->d_type == DT_REG)
         {
-            char* full_path = get_filepath(entry->d_name,dir_path);
-            int file;
-
-            rewrite_info(entry->d_name);
-            
+            type = 1;
+            rewrite_info(type, entry->d_name);           
             file = open(full_path, O_RDONLY);
 
-            if (rewrite(file) == 0)
+            if (rewrite_file(file) == 0)
             {
                 printf("Перезапись файла осуществлена успешно!\n");
             }       
-        }
-
-        
+        }    
     }
+
     return 0; 
 }
 
@@ -99,7 +101,44 @@ int free_mem(char array[], int n)
     return 0;
 }
 
-int rewrite(int in)
+int rewrite_dir(int type, char *path, int count)
+{
+    rewrite_type(type);
+
+    return 0;
+}
+
+void rewrite_type(int type)
+{
+    int mem = SIZE;
+    int out;
+    char* type_, count_;
+
+    out = open("archiv.txt",O_WRONLY|O_APPEND|O_CREAT, S_IROTH|S_IRGRP|S_IRUSR|S_IWGRP|S_IWOTH|S_IWUSR);
+
+    if (out == -1)
+    {
+        perror("Ошибка: не удаётся создать выходной файл или открыть существующий с таким же именем.");
+    }
+
+    type_ = from_int_to_char(type, mem);
+
+    char _type_[mem];
+
+    for (int i = 0; i < mem; i++)
+    {
+        _type_[i] = *(type_+i);
+    }
+        
+    if (write(out, _type_, mem-1) == -1)
+    {
+        perror("Не удаётся записать данные");
+    } 
+
+    close(out);   
+}
+
+int rewrite_file(int in)
 {  
     int out, nread, size;
     char block[1024];
@@ -144,12 +183,14 @@ int rewrite(int in)
     return 0;
 }
 
-int rewrite_info(char *path)
+int rewrite_info(int type, char *path)
 {
     int length = strlen(path);
     int out;
     int mem = SIZE;
     char* length_;
+
+    rewrite_type(type);
     
     length_ = from_int_to_char(length, mem);
     out = open("archiv.txt",O_WRONLY|O_APPEND|O_CREAT, S_IROTH|S_IRGRP|S_IRUSR|S_IWGRP|S_IWOTH|S_IWUSR);
@@ -160,12 +201,21 @@ int rewrite_info(char *path)
         return -2;
     }
 
+    // write type
+    if (write(out, "0", mem) == -1)
+    {
+        perror("Ошибка: не удаётся осуществить дозапись.");
+        return -4;
+    }
+
+    // write length of the file
     if (write(out, length_, mem) == -1)
     {
         perror("Ошибка: не удаётся осуществить дозапись.");
         return -4;
     }
 
+    // write path of the file
     if (write(out, path, sizeof(char)*length) == -1)
     {
         perror("Ошибка: не удаётся осуществить дозапись.");
@@ -175,6 +225,31 @@ int rewrite_info(char *path)
     close(out);
 
     return 0;
+}
+
+int count_objects_in_dir(char* path)
+{
+    DIR *folder = opendir(path);
+    struct stat statbuf;
+    struct dirent *entry;
+    int count = 0;
+
+    if (folder == NULL)
+    {
+        perror("Не удалось открыть папку");
+        return -1;
+    }
+
+    while (entry = readdir(folder))
+    {
+        if (strcmp(".", entry->d_name) == 0 || strcmp("..", entry->d_name) == 0)
+                continue;
+
+        printf("%s\n", entry->d_name);
+        count++;
+    }
+
+    return count;
 }
 
 char* to_char(char buf[])
@@ -222,6 +297,7 @@ int unpack(char *archiv_path, char *folder)
     }
 
     size = SIZE;
+
     if ((dir = mkdir(folder, S_IROTH|S_IRGRP|S_IRUSR|S_IWGRP|S_IWOTH|S_IWUSR)) == -1)
     {
         perror("Не удаётся создать папку.");
