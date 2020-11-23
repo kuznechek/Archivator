@@ -21,9 +21,9 @@ int main()
 
     //char* func = arg[1]; // what to do
     //char* dir = arg[2]; // with it
-    char* func = "unpack"; // what to do
-    //char* dir = "Test"; // with it
-    char* dir = "Unpack";
+    char* func = "pack"; // what to do
+    char* dir = "Test"; // with it
+    //char* dir = "Unpack";
     char* archiv = "archiv.txt";
 
     printf("%s\n",func);
