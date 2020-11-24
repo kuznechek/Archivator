@@ -25,6 +25,10 @@ int pack(char *dir_path)
         return -1;
     }
 
+    type = 0;
+    objects = count_objects_in_dir(dir_path);
+    rewrite_dir(type, dir_path, objects);
+
     while (entry = readdir(folder))
     {
         printf("%s\n", entry->d_name);
@@ -35,10 +39,6 @@ int pack(char *dir_path)
             if (strcmp(".", entry->d_name) == 0 || strcmp("..", entry->d_name) == 0)
                 continue;
 
-            type = 0;
-
-            objects = count_objects_in_dir(full_path);
-            rewrite_dir(type, full_path, objects);
             pack(full_path);
         }
 
@@ -67,11 +67,7 @@ char* get_filepath(char* file, char* path)
     char check_root[2];
 
     free_mem(full_path, mem);
-
-    //strcat(full_path,"/home/anastasia/Archivator/");
-
     strncat(check_root, path, 2);
-
 
     if (strncmp(check_root, root, 2) != 0)
     {
@@ -81,7 +77,6 @@ char* get_filepath(char* file, char* path)
     strcat(full_path,path);
     strcat(full_path,"/");
     strcat(full_path,file);
-    
     full_path_ = to_char(full_path);
 
     return full_path_;
@@ -115,7 +110,7 @@ int free_mem(char array[], int n)
 
 int rewrite_dir(int type, char *path, int count)
 {
-    rewrite_number(type);
+    rewrite_info(type, path);
     rewrite_number(count);
     return 0;
 }
@@ -212,8 +207,8 @@ int rewrite_info(int type, char *path)
         perror("Ошибка: не удаётся создать выходной файл или открыть существующий с таким же именем.");
         return -2;
     }
-
-    // write length of the file
+    
+    // write length of the file's file
     if (write(out, length_, mem) == -1)
     {
         perror("Ошибка: не удаётся осуществить дозапись.");
@@ -290,9 +285,10 @@ char* from_int_to_char(int numb, int mem)
 
 int unpack(char *archiv_path, char *folder)
 {
-    int archiv, file, dir, path_length_, size, size_file;
-    char* path_length;
-    char* file_path = NULL;
+    int archiv, dir, type, objects, path_length;
+    int size = aSIZE;
+    char* type_;
+    char* path = NULL;
     char buf[1024];
 
     if ((archiv = open(archiv_path, O_RDONLY)) == -1)
@@ -301,7 +297,72 @@ int unpack(char *archiv_path, char *folder)
         return -5;
     }
 
-    size = SIZE;
+    free_mem(buf,1024);
+    // read type
+    if (read(archiv, buf, size) == -1)
+    {
+        perror("Не удаётся прочитать данные из архива!");
+        return -6;
+    }
+
+    type = from_char_to_int(buf);
+
+    if (type != 0)
+    {
+        perror("Полученный на вход файл не является заархивированным.");
+        return -7;
+    }
+
+    free_mem(buf, size);
+
+    //read len path
+    if (read(archiv, buf, size) == -1)
+    {
+        perror("Не удаётся прочитать данные из архива!");
+        return -6;
+    }
+
+    path_length = from_char_to_int(buf);
+    free_mem(buf, size);
+        
+    //read path
+    if (read(archiv, buf, path_length) == -1)
+    {
+        perror("Не удаётся прочитать данные из архива!");
+        return -6;
+    }
+
+    path = to_char(buf);
+    free_mem(buf, path_length);
+
+    // read count of objects inside
+    if (read(archiv, buf, size) == -1)
+    {
+        perror("Не удаётся прочитать данные из архива!");
+        return -6;
+    }
+
+    objects = from_char_to_int(buf);
+    free_mem(buf, size);
+
+    if (unpack_dir(archiv, path, objects) == -1)
+    {
+        perror("Не удаётся разахивировать директорию.");
+        return -8;
+    }
+
+    close(archiv);
+
+    return 0;
+}
+
+int unpack_dir(int archiv, char* folder, int objects)
+{
+    int size = aSIZE;
+    char buf[1024];
+    int dir, type, path_length_, size_file, file, new_folder, new_objects;
+    char* path = NULL;
+    char* path_length, type_;
 
     if ((dir = mkdir(folder, S_IROTH|S_IRGRP|S_IRUSR|S_IWGRP|S_IWOTH|S_IWUSR)) == -1)
     {
@@ -309,11 +370,24 @@ int unpack(char *archiv_path, char *folder)
         return -5;
     }
 
-    while(read(archiv, buf, size) != -1)
+    //circut from 0 to the count of objects inside
+    for (int i = 0; i < objects; i++)
     {
-        if (buf[0] == '\000')
+        //read type
+        if (read(archiv, buf, size) == -1)
         {
-            break;
+            perror("Не удаётся прочитать данные из архива!");
+            return -6;
+        }
+
+        type = from_char_to_int(buf);
+        free_mem(buf, size);
+        
+        //read len path
+        if (read(archiv, buf, size) == -1)
+        {
+            perror("Не удаётся прочитать данные из архива!");
+            return -6;
         }
 
         path_length_ = from_char_to_int(buf);
@@ -326,48 +400,64 @@ int unpack(char *archiv_path, char *folder)
             return -6;
         }
 
-        file_path = to_char(buf);
-        char* full_path_ = get_filepath(file_path, folder); 
-        file = open(file_path,O_WRONLY|O_APPEND|O_CREAT, S_IROTH|S_IRGRP|S_IRUSR|S_IWGRP|S_IWOTH|S_IWUSR);
+        path = to_char(buf);
 
-        if (file == -1)
+        //if dir --> unpack
+        if (type == 0)
         {
-            perror("Ошибка: не удаётся создать выходной файл или открыть существующий с таким же именем.");
-            return -2;
+            //read count of files
+            if (read(archiv, buf, size) == -1)
+            {
+                perror("Не удаётся прочитать данные из архива!");
+                return -6;
+            }
+
+            new_objects = from_char_to_int(buf);
+            free_mem(buf, size);    
+            unpack_dir(archiv, path, new_objects);
         }
+            
 
-        free_mem(buf, path_length_);
-
-        if (read(archiv, buf, size) == -1)
+        //if file --> write
+        else if (type == 1)
         {
-            perror("Не удаётся прочитать данные из архива!");
-            return -6;
+            //char* full_path_ = get_filepath(file_path, folder); 
+            free_mem(buf, path_length_);
+            file = open(path,O_WRONLY|O_APPEND|O_CREAT, S_IROTH|S_IRGRP|S_IRUSR|S_IWGRP|S_IWOTH|S_IWUSR);
+
+            if (file == -1)
+            {
+                perror("Ошибка: не удаётся создать выходной файл или открыть существующий с таким же именем.");
+                return -2;
+            }
+
+            //read len file         
+            if (read(archiv, buf, size) == -1)
+            {
+                perror("Не удаётся прочитать данные из архива!");
+                return -6;
+            }
+
+            size_file = from_char_to_int(buf);
+            free_mem(buf, size);
+
+            // read file
+            if (read(archiv, buf, size_file) == -1)
+            {
+                perror("Не удаётся прочитать данные из архива!");
+                return -6;
+            }   
+
+            if (write(file, buf, size_file) == -1)
+            {
+                perror("Не удаётся записать данные");
+                return -4;
+            }
+
+            free_mem(buf, size_file);
+            close(file); 
         }
-
-        size_file = from_char_to_int(buf);
-        free_mem(buf, size);
-
-        if (read(archiv, buf, size_file) == -1)
-        {
-            perror("Не удаётся прочитать данные из архива!");
-            return -6;
-        }   
-
-        if (write(file, buf, size_file) == -1)
-        {
-            perror("Не удаётся записать данные");
-            return -4;
-        }
-
-        free_mem(buf, size_file);
-        close(file);  
-        //int l = link(full_path_, file_path);  
-        break;
     }
-
-    close(archiv);
-
-    return 0;
 }
 
 int from_char_to_int(char str[])
