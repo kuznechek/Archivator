@@ -45,7 +45,7 @@ int pack(char *dir_path)
         else if (entry->d_type == DT_REG)
         {
             type = 1;
-            rewrite_info(type, entry->d_name);           
+            rewrite_info(type, full_path);           
             file = open(full_path, O_RDONLY);
 
             if (rewrite_file(file) == 0)
@@ -63,9 +63,21 @@ char* get_filepath(char* file, char* path)
     int mem = strlen(path)+strlen(file);
     char full_path[mem];
     char* full_path_ = NULL;
+    char root[2] = "./";
+    char check_root[2];
 
     free_mem(full_path, mem);
-    strcat(full_path,"/home/anastasia/Archivator/");
+
+    //strcat(full_path,"/home/anastasia/Archivator/");
+
+    strncat(check_root, path, 2);
+
+
+    if (strncmp(check_root, root, 2) != 0)
+    {
+        strncat(full_path,root,2);
+    }
+
     strcat(full_path,path);
     strcat(full_path,"/");
     strcat(full_path,file);
@@ -103,16 +115,16 @@ int free_mem(char array[], int n)
 
 int rewrite_dir(int type, char *path, int count)
 {
-    rewrite_type(type);
-
+    rewrite_number(type);
+    rewrite_number(count);
     return 0;
 }
 
-void rewrite_type(int type)
+void rewrite_number(int n)
 {
     int mem = SIZE;
     int out;
-    char* type_, count_;
+    char* n_;
 
     out = open("archiv.txt",O_WRONLY|O_APPEND|O_CREAT, S_IROTH|S_IRGRP|S_IRUSR|S_IWGRP|S_IWOTH|S_IWUSR);
 
@@ -121,16 +133,16 @@ void rewrite_type(int type)
         perror("Ошибка: не удаётся создать выходной файл или открыть существующий с таким же именем.");
     }
 
-    type_ = from_int_to_char(type, mem);
+    n_ = from_int_to_char(n, mem);
 
-    char _type_[mem];
+    char _n_[mem];
 
     for (int i = 0; i < mem; i++)
     {
-        _type_[i] = *(type_+i);
+        _n_[i] = *(n_+i);
     }
         
-    if (write(out, _type_, mem-1) == -1)
+    if (write(out, _n_, mem-1) == -1)
     {
         perror("Не удаётся записать данные");
     } 
@@ -146,7 +158,7 @@ int rewrite_file(int in)
     
     if (in == -1)
     {
-        perror("Ошибка: входной файл не существет или не открывается.");
+        perror("Ошибка: входной файл не существyет или не открывается.");
         return -1;
     }
 
@@ -190,7 +202,7 @@ int rewrite_info(int type, char *path)
     int mem = SIZE;
     char* length_;
 
-    rewrite_type(type);
+    rewrite_number(type);
     
     length_ = from_int_to_char(length, mem);
     out = open("archiv.txt",O_WRONLY|O_APPEND|O_CREAT, S_IROTH|S_IRGRP|S_IRUSR|S_IWGRP|S_IWOTH|S_IWUSR);
@@ -199,13 +211,6 @@ int rewrite_info(int type, char *path)
     {
         perror("Ошибка: не удаётся создать выходной файл или открыть существующий с таким же именем.");
         return -2;
-    }
-
-    // write type
-    if (write(out, "0", mem) == -1)
-    {
-        perror("Ошибка: не удаётся осуществить дозапись.");
-        return -4;
     }
 
     // write length of the file
@@ -322,8 +327,7 @@ int unpack(char *archiv_path, char *folder)
         }
 
         file_path = to_char(buf);
-        char* full_path_ = get_filepath(file_path, folder);
-        
+        char* full_path_ = get_filepath(file_path, folder); 
         file = open(file_path,O_WRONLY|O_APPEND|O_CREAT, S_IROTH|S_IRGRP|S_IRUSR|S_IWGRP|S_IWOTH|S_IWUSR);
 
         if (file == -1)
