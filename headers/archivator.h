@@ -13,4 +13,5 @@ char* to_char(char buf[]);
 char* from_int_to_char(int numb, int mem);
 int from_char_to_int(char str[]);
 int count_objects_in_dir(char* path);
-void rewrite_type(int type);
+//void rewrite_type(int type);
+void rewrite_number(int n);
